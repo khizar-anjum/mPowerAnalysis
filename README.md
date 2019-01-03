@@ -1,4 +1,5 @@
-Hello, this is a repository for my final year project.
+Hello, this is a repository for my final year project. This only 
+contains code and important information that I use for my project.
 
 ## What is the project about?
 <dl>

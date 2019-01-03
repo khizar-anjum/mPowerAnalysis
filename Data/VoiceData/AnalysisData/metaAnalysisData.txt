@@ -1,0 +1,30 @@
+General Tag:
+This data contains the audio file components of a subset of the voiceAcitivity data.
+
+Naming convention:
+X_sec(i).npy: is a general data array name which is a 500x44100 matrix in general except when i = 70 and i = 47. 
+i goes from 0 to 70.
+Y.npy is the label of these vector of these arrays which is of size (35130,)
+
+Generation:
+The data given here has been generated from the main audio files of the Voice Activity data.
+Following assumptions were taken into account for its generation from the main Voice Activity data:
+1- All the recordings in which recorder's (a person) smoking status was true were not included.
+2- All the recordings in which recorder's professional diagnosis was unclear were not included.
+3- All the recordings in which recorder recorded just after taking a medication were not included.
+4- If one person recorded several recordings, all the recordings were treated distinctly and were given separate tags/labels.
+5- All the recordings which were corrupt or of invalid sizes or very short (less than 2 seconds) were not included.
+6- All the recordings were converted to PCM and subsequently decimated from 44.1 kHz to 4.41 kHz sample rate.
+7- All the recordings were of 10s approx, therefore, they were truncated or padded to make them all of 44100 samples. (4.41kHz*10s)
+8- They were then packed into bundles of 500 recordings and the recordings were named X_sec(i) where i goes from 0 to 70.
+9- i = 47 file contains 499 recordings because it was discovered later that one of its recordings was empty (contained nans)
+
+Usage:
+1- The X_sec(i).npy are to be loaded in increasing i fashion and concatenated (vstack) in the same order. This will result in a 
+35130x44100 matrix where 44100 is the length of one file and 35130 represents the number of recordings (pseudo-patients to predict)
+2- Similarly Y has shape (35130,) and is a boolean vector. True represents positive professional-diagnosis (means it is a patient) and 
+false represents healthy.
+
+General Trivia:
+X when taken together forms 11.5 GB of data
+Out of 35130 recordings, 20250 are labelled positive and 14880 are labeled negative

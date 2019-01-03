@@ -1,0 +1,21 @@
+General Tag:
+This data contains mfccs of audio file components of a subset of the voiceAcitivity data.
+
+Naming convention:
+X_mfcc.npy: is a general data array name which is a (35130,20,87) size matrix.
+35130 represents number of pseudo-patients
+20 represents the number of mfcc components
+87 represents the time axis
+Y.npy is the label of these vector of these arrays which is of size (35130,)
+
+Generation:
+This data was generated from AnalysisData. (To read how that went about, read other file)
+Following steps were taken to generate it:
+1- First I loaded all the analysis data from all of its sections
+2- Then I extracted 20 mfcc's from each recording with automatic time resolution using python mfcc library
+3- Then it was saved.
+
+Usage:
+1- load the X_mfcc data and reshape it according to your algorithm
+2- first encode Y into discrete labels (i.e. 0 and 1). It cannot be used in its raw form
+
