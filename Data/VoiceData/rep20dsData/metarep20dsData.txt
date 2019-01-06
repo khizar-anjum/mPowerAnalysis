@@ -7,3 +7,5 @@ X_(train\val\test)_sec(i).npy: is a general data array name which is a 500x44100
 Y_(train\val\test).npy are label vectors which cumulatively are of size (20507,)
 further details on size of each of these matrix sizes could either be found from rep_voice_cohort or from evernote
 
+Important note:
+the Series file for this data can be found as ..\\rep_voice_cohort.csv
