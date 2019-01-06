@@ -1,3 +1,5 @@
+.*
+!.gitignore
 *.npy
 *.csv
 *.m4a
