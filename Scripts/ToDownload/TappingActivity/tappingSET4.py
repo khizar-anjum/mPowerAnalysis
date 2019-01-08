@@ -19,7 +19,7 @@ import shutil
 
 #%% Logging in
 syn = synapseclient.Synapse()
-syn.login('khizaranjum', 'nI@1J!xAn4w&3o!#')
+syn.login()
 
 #%%
 tapping_table = 'syn5511439';
