@@ -1,0 +1,2 @@
+this is a file which contains information about 1853 patients which are reported study cohort in P. Schwab's paper
+these are filtered by dropping all patients who were less than 45 years old and those whose professional-diagnosis was unclear.

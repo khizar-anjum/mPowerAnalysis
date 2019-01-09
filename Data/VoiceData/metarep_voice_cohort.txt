@@ -1,0 +1,4 @@
+this csv file is created under the the aim of the full replication of P. schwab's paper 
+it contains the same (almost) the population statistics of the table S6 of the voice activity data
+it contains 3 partitions of the dataset (train, test and validation)
+it's properties are recorded in evernote as well under the note "Differences found while Replicating P.Schwab's work"

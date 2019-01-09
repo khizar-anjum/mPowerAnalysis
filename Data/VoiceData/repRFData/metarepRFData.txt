@@ -1,0 +1,12 @@
+this is the data prepared in accordance with the P. Schwab's paper. 
+However, there is a slight hitch that it only contains 3 features out of the 6 features presented
+in the original paper.
+The three features included are:
+Detrended flucation analysis
+mean Teager kaiser Energy operator
+mfcc (40 mfcc calculated with default parameters from the librosa library)
+
+following Features were not included because their calculation was taking very long and I skipped them
+jitter
+shimmer
+pitch period entropy!

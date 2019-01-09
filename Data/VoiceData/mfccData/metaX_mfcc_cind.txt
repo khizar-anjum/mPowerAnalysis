@@ -1,0 +1,2 @@
+this is the same data, which was contained in X_mfcc.npy except it has been divided into train, test and validation sets stratified by the age vector.
+This causes multiple recordings by the same person to fall on one side of the split!

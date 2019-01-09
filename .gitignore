@@ -1,0 +1,7 @@
+.*
+!.gitignore
+*.npy
+*.csv
+*.m4a
+__*__
+*.json
