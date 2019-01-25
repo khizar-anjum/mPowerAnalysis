@@ -7,7 +7,7 @@ Created on Thu Jan 10 22:33:02 2019
 This file is meant to implement an EAM model as implemented in P. Schwab's work 
 but this EAM model would only aggregate or compile results from only one mode
 of data i.e. voice data. 
-basically, I will be using two data (repRFData or mfccData) and just couple those
+basically, I will be using two data (repRFData or mfccData_cind) and just couple those
 RF models with a sequential RNN (BLSTM) network in order to see the difference.
 
 """
