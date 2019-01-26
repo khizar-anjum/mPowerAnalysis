@@ -26,6 +26,7 @@ reps = mfccSeries['healthCode'].value_counts()
 
 uniques = np.unique(reps.values)
 count_reps = [(reps.values == i).sum()/len(reps) for i in uniques]
+max(count_reps)
 # Mode number of recordings is 3
 
 np.average(reps.values)
@@ -41,6 +42,8 @@ count_reps = [(reps.values == i).sum()/len(reps) for i in uniques]
 
 np.average(reps.values)
 # Average number of recordings is 16.25
+
+#plt.plot(uniques,count_reps)
 
 #%%
 """
@@ -79,3 +82,4 @@ rfclf = RandomForestClassifier(n_estimators = 150, max_depth = 25, random_state 
 rfclf.fit(X_train,Y_train)
 print(rfclf.score(X_test,Y_test))
 print(rfclf.score(X_train,Y_train))
+#%%
