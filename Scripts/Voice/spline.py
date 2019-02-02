@@ -25,8 +25,8 @@ in evernote.
 import sys
 import pandas as pd
 import numpy as np
-import keras
-from keras import backend as K
+#import keras
+#from keras import backend as K
 from sklearn import preprocessing
 #from keras.engine.topology import Layer
 import tensorflow as tf
@@ -34,14 +34,15 @@ import tensorflow as tf
 #import pickle
 #import scipy.io
 #from sklearn.model_selection import train_test_split
-from keras import utils as np_utils
+#from keras import utils as np_utils
 #from sklearn.model_selection import StratifiedKFold
-from keras.callbacks import CSVLogger
+from keras.callbacks import CSVLogger, EarlyStopping
 #from keras.initializers import Initializer
-from keras.layers import Input, Dense, Add, MaxPooling1D, Dropout, Activation, Flatten
+from keras.layers import Input, Dense, Add, MaxPooling1D, Dropout, Flatten
 #from keras.lyaers import Reshape
 from keras.models import Model
 from keras.layers.convolutional import Conv1D
+from scipy.stats import mode
 
 #%% IMPORTING DATA
 def k_selections(k, data, series, split):
@@ -233,7 +234,7 @@ def real_sp_initializer(shape,dtype=tf.float32):
     myfil = tf_hermite_complex(S=S,deterministic=0,renormalization=np.amax,initialization='gabor',chirplet=1);
     [real_bank,imag_bank,T] = create_filter_banks_complex(filter_class=myfil,N=N,J=J,Q=Q);
     real_bank = np.expand_dims(real_bank,axis=0)
-    real_bank = np.repeat(real_bank,shape[0],axis=1).reshape(J*Q,shape[0],T)
+    real_bank = np.repeat(real_bank,shape[0],axis=1).reshape(T,shape[0],J*Q)
     return tf.convert_to_tensor(real_bank, dtype=dtype)
 
 def imag_sp_initializer(shape,dtype=tf.float32):
@@ -241,17 +242,15 @@ def imag_sp_initializer(shape,dtype=tf.float32):
     myfil = tf_hermite_complex(S=S,deterministic=0,renormalization=np.amax,initialization='gabor',chirplet=1);
     [real_bank,imag_bank,T] = create_filter_banks_complex(filter_class=myfil,N=N,J=J,Q=Q);
     imag_bank = np.expand_dims(imag_bank,axis=0)
-    imag_bank = np.repeat(imag_bank,shape[0],axis=1).reshape(J*Q,shape[0],T)
+    imag_bank = np.repeat(imag_bank,shape[0],axis=1).reshape(T,shape[0],J*Q)
     return tf.convert_to_tensor(imag_bank, dtype=dtype)
-#%%
-temp = real_sp_initializer((20,87))
 #%% Making model in here!
 def spline_model(N = 16, J = 4, Q = 8, S = 16, T = 20):
     inputs = Input(shape=(20,87))
     #
     #
-    x = Conv1D(filters=int(J*N),kernel_size=int(T),padding='valid',data_format='channels_first', activation='relu',kernel_initializer=real_sp_initializer)(inputs)#
-    y = Conv1D(filters=int(J*N),kernel_size=int(T),padding='valid',data_format='channels_first', activation='relu',kernel_initializer=imag_sp_initializer)(inputs)#
+    x = Conv1D(filters=int(J*Q),kernel_size=int(T),padding='valid',data_format='channels_first', activation='relu',kernel_initializer=real_sp_initializer)(inputs)
+    y = Conv1D(filters=int(J*Q),kernel_size=int(T),padding='valid',data_format='channels_first', activation='relu',kernel_initializer=imag_sp_initializer)(inputs)
     xy = Add()([x,y])
     print(xy)
     #c1 = Conv1D(24,128,activation='relu',strides=1,data_format='channels_first',padding='valid')(xy)
@@ -260,16 +259,16 @@ def spline_model(N = 16, J = 4, Q = 8, S = 16, T = 20):
     c2 = Conv1D(16,64,activation='relu',strides=1,data_format='channels_first',padding='valid')(xy)
     p2 = MaxPooling1D(pool_size=2,strides=1, padding='valid')(c2)
     d2 = Dropout(0.2)(p2)
-    #c3 = Conv1D(8,32,activation='relu',strides=1,data_format='channels_first',padding='valid')(d2)
+    c3 = Conv1D(8,4,activation='relu',strides=1,data_format='channels_first',padding='valid')(d2)
     #print(c3)
     #p3 = MaxPooling1D(pool_size=2,strides=1, padding='valid')(c3)
     #print(p3)
     #d3 = Dropout(0.1)(p3)
     #print(d3)
     #c4 = Conv1D(4,16,activation='relu',strides=1,data_format='channels_first',padding='valid')(d2)
-    f1 = Flatten()(d2)
+    f1 = Flatten()(c3)
     print(f1)
-    dn1 = Dense(30,activation='relu')(f1)
+    dn1 = Dense(8,activation='relu')(f1)
     d4 = Dropout(0.2)(dn1)
     predictions = Dense(1,activation='sigmoid')(d4)
     
@@ -297,20 +296,36 @@ S: int, number of spline regions"""
 myfil = tf_hermite_complex(S=S,deterministic=0,renormalization=np.amax,initialization='gabor',chirplet=1);
 [_,_,T] = create_filter_banks_complex(filter_class=myfil,N=N,J=J,Q=Q);
 print ('T: ' + str(T))
-
+#%%
+from sklearn.utils import class_weight
+sample_weights = class_weight.compute_sample_weight('balanced', label_tr)
+#%%
 #defining my model using KERAS Functional API
 model = spline_model(N = N, J = J, Q = Q, S = S,T = T)
 model.summary()
 
 #%%
 #the spline filters are present in the layers x and y
-rmsprop = keras.optimizers.RMSprop(lr=lr, rho=0.9, epsilon=None, decay=0.1)
-model.compile(optimizer=rmsprop, loss='mean_squared_error', metrics=['accuracy'])
-csv_logger = CSVLogger('Spline_log\\spline_log.csv', append=False, separator=';')
-model.fit(X_train,label_tr,batch_size=10,epochs=Epochs,validation_data=(X_val,label_va),callbacks=[csv_logger])
+#rmsprop = keras.optimizers.RMSprop(lr=lr, rho=0.9, epsilon=None, decay=0.1)
+early_stopping = EarlyStopping(monitor='loss', min_delta=0, patience = 10, mode='auto', baseline=None, restore_best_weights=True)
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+csv_logger = CSVLogger('Spline_log\\spline_log.csv', append=False, separator=',')
+model.fit(X_train,label_tr,batch_size=1000,epochs=Epochs,validation_data=(X_val,label_va),callbacks=[csv_logger, early_stopping],sample_weight=sample_weights)
 scr,acc=model.evaluate(X_test,label_te,batch_size=batch)
 model.save_weights('Spline_log\\spline_weights.h5')
 avg=avg+acc
 print(' Test accuracy: '+str(acc))
 
+#%%
+y_pred = model.predict(X_test)
+print(1-((np.abs(np.ravel(np.round(y_pred)) - label_te)).sum()/len(label_te)))
 
+#%%
+Y_test_pat = Y_test[~Y_test.index.duplicated(keep='first')]
+temp = y_pred.reshape(int(len(y_pred)/k),k)
+#%%
+temp1,_ = mode(np.round(temp).T)
+temp1 = temp1.T
+
+#%%
+print(1-(np.abs(np.ravel(temp1) - le.fit_transform(Y_test_pat.values))).sum()/len(temp1))
