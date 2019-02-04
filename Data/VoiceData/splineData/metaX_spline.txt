@@ -1,0 +1,5 @@
+This is a 20x downsampled version of AnalysisData. It also contains time series data instead of mfcc's or features only
+The better thing is that it is partitioned into ~70-20-10 blocks of train-test-val sets according to patients (which means
+that recordings from a same patient end up in only one set. They are also stratified by age).
+there are 3042 patients and 34999 recordings in total. The Parkinson's patients (positive professional diagnosis) are a bit
+higher in percentage (~57%).
