@@ -22,15 +22,17 @@ in evernote.
 #splinefilter1d.ipynb". 
 
 #%% Importing libraries
+
 import sys
 import pandas as pd
 import numpy as np
 #import keras
 #from keras import backend as K
+from keras.utils import to_categorical
 from sklearn import preprocessing
 #from keras.engine.topology import Layer
 import tensorflow as tf
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 #import pickle
 #import scipy.io
 #from sklearn.model_selection import train_test_split
@@ -43,8 +45,9 @@ from keras.layers import Input, Dense, Add, MaxPooling1D, Dropout, Flatten
 from keras.models import Model
 from keras.layers.convolutional import Conv1D
 from scipy.stats import mode
+from sklearn.utils import class_weight
 
-#%% IMPORTING DATA
+#%% WRITING IMP FUNCTIONS
 def k_selections(k, data, series, split):
     """
     This function takes in data and returns data with k selections procedure 
@@ -69,7 +72,7 @@ def k_selections(k, data, series, split):
         Y : A pandas series containing target values for recordings
             Target values about data  
     """
-    series = mfccSeries[mfccSeries['split'] == split].reset_index(drop=True)
+    series = series[series['split'] == split].reset_index(drop=True)
     reps = series['healthCode'].value_counts()
     reps = reps[reps >= k]
     series = series.reset_index().set_index('healthCode')
@@ -82,10 +85,10 @@ def k_selections(k, data, series, split):
 
 
 #%% Using k_selections
-mfccSeries = pd.read_csv('..\\..\\Data\\VoiceData\\mfccData\\SeriesX_mfcc_cind.csv')
-X_train = np.load('..\\..\\Data\\VoiceData\\mfccData\\X_mfcc_train_cind.npy')
-X_val = np.load('..\\..\\Data\\VoiceData\\mfccData\\X_mfcc_val_cind.npy')
-X_test = np.load('..\\..\\Data\\VoiceData\\mfccData\\X_mfcc_test_cind.npy')
+mfccSeries = pd.read_csv('..\\..\\Data\\VoiceData\\splineData\\SeriesX_spline.csv')
+X_train = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_train.npy')
+X_val = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_val.npy')
+X_test = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_test.npy')
 
 k = 3;
 X_train, Y_train = k_selections(k, X_train, mfccSeries, 'train')
@@ -93,13 +96,13 @@ X_val, Y_val = k_selections(k, X_val, mfccSeries, 'val')
 X_test, Y_test = k_selections(k, X_test, mfccSeries, 'test')
 #%%
 le = preprocessing.LabelEncoder()
-label_tr = le.fit_transform(Y_train.values)
-label_va = le.fit_transform(Y_val.values)
-label_te = le.fit_transform(Y_test.values)
+label_tr = to_categorical(le.fit_transform(Y_train.values),num_classes=2)
+label_va = to_categorical(le.fit_transform(Y_val.values),num_classes=2)
+label_te = to_categorical(le.fit_transform(Y_test.values),num_classes=2)
 
-#X_train = X_train.reshape((X_train.shape[0],-1))
-#X_test = X_test.reshape((X_test.shape[0],-1))
-#X_val = X_val.reshape((X_val.shape[0],-1))
+X_train = np.expand_dims(X_train,axis=2)
+X_test = np.expand_dims(X_test,axis=2)
+X_val = np.expand_dims(X_val,axis=2)
 #%% Useful functions
 #defining useful functions
 def th_linspace(start,end,n):
@@ -230,54 +233,64 @@ initialization:'gabor','random_random_apodized', initialization of the spline hy
 #%%
 #these functions do the initialization for spline wavelets
 def real_sp_initializer(shape,dtype=tf.float32):
-    N,J,Q,S    = 5,2,4,16
-    myfil = tf_hermite_complex(S=S,deterministic=0,renormalization=np.amax,initialization='gabor',chirplet=1);
-    [real_bank,imag_bank,T] = create_filter_banks_complex(filter_class=myfil,N=N,J=J,Q=Q);
-    real_bank = np.expand_dims(real_bank,axis=0)
-    real_bank = np.repeat(real_bank,shape[0],axis=1).reshape(T,shape[0],J*Q)
+    N,J,Q,S    = 50,2,256,96
+    myfil = tf_hermite_complex(S=S,deterministic=0,renormalization=np.linalg.norm,initialization='gabor',chirplet=1);
+    [real_bank,_,_] = create_filter_banks_complex(filter_class=myfil,N=N,J=J,Q=Q);
+    real_bank = np.expand_dims(real_bank.T,axis=1)
+    #real_bank = np.repeat(real_bank,shape[1],axis=1).reshape(T,shape[0],J*Q)
     return tf.convert_to_tensor(real_bank, dtype=dtype)
 
 def imag_sp_initializer(shape,dtype=tf.float32):
-    N,J,Q,S    = 5,2,4,16
-    myfil = tf_hermite_complex(S=S,deterministic=0,renormalization=np.amax,initialization='gabor',chirplet=1);
-    [real_bank,imag_bank,T] = create_filter_banks_complex(filter_class=myfil,N=N,J=J,Q=Q);
-    imag_bank = np.expand_dims(imag_bank,axis=0)
-    imag_bank = np.repeat(imag_bank,shape[0],axis=1).reshape(T,shape[0],J*Q)
+    N,J,Q,S    = 50,2,256,96
+    myfil = tf_hermite_complex(S=S,deterministic=0,renormalization=np.linalg.norm,initialization='gabor',chirplet=1);
+    [_,imag_bank,_] = create_filter_banks_complex(filter_class=myfil,N=N,J=J,Q=Q);
+    imag_bank = np.expand_dims(imag_bank.T,axis=1)
+    #imag_bank = np.repeat(imag_bank,shape[1],axis=1).reshape(T,shape[0],J*Q)
     return tf.convert_to_tensor(imag_bank, dtype=dtype)
+#%%
+from keras.layers import Activation
+from keras import backend as K
+from keras.utils.generic_utils import get_custom_objects    
+
+def square_activation(x):
+    return K.square(x)
+
+get_custom_objects().update({'square_activation': Activation(square_activation)})
+
 #%% Making model in here!
-def spline_model(N = 16, J = 4, Q = 8, S = 16, T = 20):
-    inputs = Input(shape=(20,87))
+def spline_model(J = 2, Q = 256, T = 200):
+    inputs = Input(shape=(22050,1))
     #
     #
-    x = Conv1D(filters=int(J*Q),kernel_size=int(T),padding='valid',data_format='channels_first', activation='relu',kernel_initializer=real_sp_initializer)(inputs)
-    y = Conv1D(filters=int(J*Q),kernel_size=int(T),padding='valid',data_format='channels_first', activation='relu',kernel_initializer=imag_sp_initializer)(inputs)
+    x = Conv1D(filters=int(J*Q),kernel_size=int(T),padding='valid',strides=10, activation='square_activation',kernel_initializer=real_sp_initializer)(inputs)
+    y = Conv1D(filters=int(J*Q),kernel_size=int(T),padding='valid',strides=10, activation='square_activation',kernel_initializer=imag_sp_initializer)(inputs)
     xy = Add()([x,y])
-    print(xy)
-    #c1 = Conv1D(24,128,activation='relu',strides=1,data_format='channels_first',padding='valid')(xy)
+    #print(xy)
+    #c1 = Conv1D(24,128,activation='relu',strides=1,padding='valid')(xy)
     #p1 = MaxPooling1D(pool_size=2,strides=1, padding='valid')(c1)
     #d1 = Dropout(0.2)(p1)
-    c2 = Conv1D(16,64,activation='relu',strides=1,data_format='channels_first',padding='valid')(xy)
-    p2 = MaxPooling1D(pool_size=2,strides=1, padding='valid')(c2)
-    d2 = Dropout(0.2)(p2)
-    c3 = Conv1D(8,4,activation='relu',strides=1,data_format='channels_first',padding='valid')(d2)
+    c2 = Conv1D(128,4,activation='relu',strides=10,padding='valid')(xy)
+    #p2 = MaxPooling1D(pool_size=100,strides=10, padding='valid')(c2)
+    d2 = Dropout(0.2)(c2)
+    c3 = Conv1D(128,4,activation='relu',strides=10,padding='valid')(d2)
     #print(c3)
-    #p3 = MaxPooling1D(pool_size=2,strides=1, padding='valid')(c3)
+    p3 = MaxPooling1D(pool_size=10,strides=5, padding='valid')(c3)
     #print(p3)
     #d3 = Dropout(0.1)(p3)
     #print(d3)
-    #c4 = Conv1D(4,16,activation='relu',strides=1,data_format='channels_first',padding='valid')(d2)
-    f1 = Flatten()(c3)
-    print(f1)
-    dn1 = Dense(8,activation='relu')(f1)
-    d4 = Dropout(0.2)(dn1)
-    predictions = Dense(1,activation='sigmoid')(d4)
+    #c4 = Conv1D(4,16,activation='relu',strides=1,padding='valid')(d2)
+    f1 = Flatten()(p3)
+    #print(f1)
+    dn1 = Dense(128,activation='sigmoid')(f1)
+    dn2 = Dense(32,activation='sigmoid')(dn1)
+    #d4 = Dropout(0.2)(dn1)
+    predictions = Dense(2,activation='softmax')(dn2)
     
     #training and evaluating the model
     model = Model(inputs=inputs, outputs=predictions)
     return model
 
 #%%
-
 #important variables
 Epochs = 1000;
 Nsplits = 10;
@@ -285,7 +298,7 @@ batch=10;
 avg = 0;
 tsind = []; #for book-keeping of which samples are in training and test on each fold
 Kn = Nsplits;
-N,J,Q,S    = 5,2,4,16
+N,J,Q,S    = 50,2,256,96
 lr = 0.001 #learning rate
 """N:int, length of the smallest (highest frequency) filter >=S
 J: int, number of octave to decompose
@@ -296,21 +309,31 @@ S: int, number of spline regions"""
 myfil = tf_hermite_complex(S=S,deterministic=0,renormalization=np.amax,initialization='gabor',chirplet=1);
 [_,_,T] = create_filter_banks_complex(filter_class=myfil,N=N,J=J,Q=Q);
 print ('T: ' + str(T))
-#%%
-from sklearn.utils import class_weight
-sample_weights = class_weight.compute_sample_weight('balanced', label_tr)
+
 #%%
 #defining my model using KERAS Functional API
-model = spline_model(N = N, J = J, Q = Q, S = S,T = T)
+model = spline_model(J = J, Q = Q, T = T)
 model.summary()
+
+#%%
+
+y_org = le.fit_transform(Y_train.values)
+class_weights = class_weight.compute_class_weight('balanced',\
+                                np.unique(y_org),y_org)
 
 #%%
 #the spline filters are present in the layers x and y
 #rmsprop = keras.optimizers.RMSprop(lr=lr, rho=0.9, epsilon=None, decay=0.1)
-early_stopping = EarlyStopping(monitor='loss', min_delta=0, patience = 10, mode='auto', baseline=None, restore_best_weights=True)
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+#with tf.Session(config=tf.ConfigProto(
+#                    intra_op_parallelism_threads=96)) as sess:
+#    sess.run(tf.global_variables_initializer())
+#    K.set_session(sess)
+early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience = 5, mode='auto', baseline=None, restore_best_weights=True)
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['binary_accuracy'])
 csv_logger = CSVLogger('Spline_log\\spline_log.csv', append=False, separator=',')
-model.fit(X_train,label_tr,batch_size=1000,epochs=Epochs,validation_data=(X_val,label_va),callbacks=[csv_logger, early_stopping],sample_weight=sample_weights)
+model.fit(X_train,label_tr,batch_size=32,\
+    epochs=Epochs,validation_data=(X_val,label_va)\
+    ,callbacks=[csv_logger,early_stopping],class_weight=class_weights)
 scr,acc=model.evaluate(X_test,label_te,batch_size=batch)
 model.save_weights('Spline_log\\spline_weights.h5')
 avg=avg+acc
@@ -329,3 +352,16 @@ temp1 = temp1.T
 
 #%%
 print(1-(np.abs(np.ravel(temp1) - le.fit_transform(Y_test_pat.values))).sum()/len(temp1))
+
+#%% VERY IMPORTANT FOR CHECKING FILTER BANKS
+myfil = tf_hermite_complex(S=45,deterministic=0,renormalization=\
+                           np.amax,initialization='gabor',chirplet=1);
+[real_bank,imag_bank,T] = create_filter_banks_complex(filter_class=\
+                            myfil,N=50,J=2,Q=256);
+print(real_bank.shape)
+n = np.linspace(-1,1,num=real_bank.shape[1])
+plt.plot(n,np.abs(np.fft.fftshift(np.fft.fft(real_bank[0,:]))))
+plt.plot(n,np.abs(np.fft.fftshift(np.fft.fft(real_bank[255,:]))))
+plt.plot(n,np.abs(np.fft.fftshift(np.fft.fft(real_bank[511,:]))))
+plt.legend(['0','255','511'])
+plt.show()
