@@ -27,6 +27,7 @@ import pandas as pd
 import numpy as np
 from keras.utils import to_categorical
 from keras import backend as K
+import matplotlib.pyplot as plt
 from sklearn import preprocessing
 from scipy.stats import mode
 from keras.callbacks import CSVLogger#, EarlyStopping
@@ -38,7 +39,7 @@ from sklearn.utils import class_weight
 from keras.utils.generic_utils import get_custom_objects    
 from spline_functions import k_selections, tf_hermite_complex,\
  real_sp_initializer, create_filter_banks_complex, sensitivity, specificity
-from imblearn.over_sampling import SMOTE
+from imblearn.over_sampling import ADASYN
 
 #%% Using k_selections
 mfccSeries = pd.read_csv('..\\..\\Data\\VoiceData\\splineData\\SeriesX_spline.csv')
@@ -68,19 +69,19 @@ get_custom_objects().update({'square_activation': Activation(square_activation)}
 
 #%% Making model in here!
 def spline_model(J = 2, Q = 128, T = 200):
-    inputs = Input(shape=(2205,10))
+    inputs = Input(shape=(22050,1))
     x = Conv1D(filters=int(J*Q),kernel_size=int(T),strides=50,padding='valid'\
-               )(inputs)#,kernel_initializer=real_sp_initializer)
+               )(inputs)#=real_sp_initializer),kernel_initializer = 'glorot_normal'
     b1 = BatchNormalization()(x)
     d1 = Dropout(0.2)(b1)
     #c2 = Conv1D(128,4,activation='relu',strides=10,padding='valid')(d1)
     #d2 = Dropout(0.3)(c2)
     #c3 = Conv1D(128,4,activation='relu',strides=10,padding='valid')(d2)
-    p3 = MaxPooling1D(pool_size=20, padding='valid')(d1)
+    p3 = MaxPooling1D(pool_size=20, padding='valid')(d1)#,kernel_initializer = 'glorot_normal'
     f1 = Flatten()(p3)
-    dn1 = Dense(128,activation='sigmoid')(f1)
+    dn1 = Dense(128,activation='relu')(f1)
     d4 = Dropout(0.2)(dn1)
-    dn2 = Dense(32,activation='sigmoid')(d4)
+    dn2 = Dense(32,activation='relu')(d4)
     d5 = Dropout(0.2)(dn2)
     predictions = Dense(2,activation='softmax')(d5)
 
@@ -88,16 +89,12 @@ def spline_model(J = 2, Q = 128, T = 200):
     
     return model
 
-model = spline_model(J=2,Q=64,T=200)
-model.summary()
 #%%
 #important variables
 Epochs = 500;
-Nsplits = 10;
 batch=10;
 avg = 0;
 tsind = []; #for book-keeping of which samples are in training and test on each fold
-Kn = Nsplits;
 N,J,Q,S    = 50,2,64,190
 lr = 0.001 #learning rate
 """N:int, length of the smallest (highest frequency) filter >=S
@@ -120,7 +117,7 @@ model.summary()
 #y_org = le.fit_transform(Y_train.values)
 #class_weights = class_weight.compute_class_weight('balanced',\
 #                                np.unique(y_org),y_org)
-sm = SMOTE(random_state=42)
+sm = ADASYN(random_state=42)
 X_res, y_res = sm.fit_resample(np.squeeze(X_train), le.fit_transform(Y_train.values))
 label_tr = to_categorical(y_res,num_classes=2)
 #%%
@@ -133,28 +130,25 @@ label_tr = to_categorical(y_res,num_classes=2)
 #early_stopping = EarlyStopping(monitor='val_sensitivity', min_delta=0, patience = 5, mode='auto', baseline=None, restore_best_weights=False)
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[sensitivity, specificity])
 csv_logger = CSVLogger('Spline_log\\spline_log'+str(0.5)+'.csv', append=False, separator=',')
-model.fit(X_res.reshape((-1,2205,10)),label_tr,batch_size=32,\
-    epochs=Epochs,validation_data=(X_val.reshape((-1,2205,10)),label_va)\
+model.fit(X_res.reshape((-1,22050,1)),label_tr,batch_size=32,\
+    epochs=Epochs,validation_data=(X_val.reshape((-1,22050,1)),label_va)\
     ,callbacks=[csv_logger])#,early_stopping],class_weight=class_weights
-acc,sens,spec=model.evaluate(X_test,label_te,batch_size=batch)
+acc,sens,spec=model.evaluate(X_test.reshape((-1,22050,1)),label_te,batch_size=batch)
 model.save_weights('Spline_log\\spline_weights'+str(0.5)+'.h5')
 print('Test sensitivity: '+str(sens))
 print('Test specificity: '+str(spec))
 #%%
-
-y_pred = model.predict(X_test.reshape((-1,2205,10)))
+y_pred = model.predict(X_test.reshape((-1,22050,1)))
 print(1-((np.abs(np.round(y_pred) - label_te)[:,0]).sum()/len(label_te)))
-print(sensitivity(label_te,np.round(y_pred)))
-print(specificity)
 #%%
 Y_test_pat = Y_test[~Y_test.index.duplicated(keep='first')]
 temp = y_pred[:,1].reshape(int(len(y_pred[:,1])/k),k)
 #%%
 temp1,_ = mode(np.round(temp).T)
 temp1 = temp1.T
-
-#%%
 print(1-(np.abs(np.ravel(temp1) - le.fit_transform(Y_test_pat.values))).sum()/len(temp1))
+#%% CODE FOR PLOTTING
+history = pd.read_csv('Spline_log\\spline_weights'+str(0.5)+'.csv')
 spline1 = np.squeeze(model.get_weights()[0])
 
 #%% VERY IMPORTANT FOR CHECKING FILTER BANKS
@@ -179,4 +173,3 @@ plt.plot(m,np.abs(np.fft.fftshift(np.fft.fft(real_bank[l,:]))))
 plt.plot(n,np.abs(np.fft.fftshift(np.fft.fft(spline1[:,l]))))
 plt.legend(['initialization','after learning'])
 plt.show()
-"""
