@@ -21,10 +21,12 @@ in evernote.
 #The methods in this file are taken from "Past Project History/SplineKerasModel/
 #splinefilter1d.ipynb". 
 
+
 #%% Importing libraries
 
 import pandas as pd
 import numpy as np
+import sys
 from keras.utils import to_categorical
 from keras import backend as K
 import matplotlib.pyplot as plt
@@ -32,7 +34,7 @@ from sklearn import preprocessing
 from scipy.stats import mode
 from keras.callbacks import CSVLogger#, EarlyStopping
 from keras.layers import Input, Dense, MaxPooling1D, Dropout, Flatten,\
-BatchNormalization, Activation #Add,
+BatchNormalization, Activation#, #LSTM #Add,
 from keras.models import Model
 from keras.layers.convolutional import Conv1D
 from sklearn.utils import class_weight
@@ -41,13 +43,15 @@ from spline_functions import k_selections, tf_hermite_complex,\
  real_sp_initializer, create_filter_banks_complex, sensitivity, specificity
 from imblearn.over_sampling import ADASYN
 
+_, drp = sys.argv
+drp = float(drp)
 #%% Using k_selections
 mfccSeries = pd.read_csv('..\\..\\Data\\VoiceData\\splineData\\SeriesX_spline.csv')
 X_train = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_train.npy')
 X_val = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_val.npy')
 X_test = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_test.npy')
 
-k = 4;
+k = 3;
 X_train, Y_train = k_selections(k, X_train, mfccSeries, 'train')
 X_val, Y_val = k_selections(k, X_val, mfccSeries, 'val')
 X_test, Y_test = k_selections(k, X_test, mfccSeries, 'test')
@@ -57,9 +61,9 @@ label_tr = to_categorical(le.fit_transform(Y_train.values),num_classes=2)
 label_va = to_categorical(le.fit_transform(Y_val.values),num_classes=2)
 label_te = to_categorical(le.fit_transform(Y_test.values),num_classes=2)
 
-#X_train = np.expand_dims(X_train,axis=2)
-#X_test = np.expand_dims(X_test,axis=2)
-#X_val = np.expand_dims(X_val,axis=2)
+X_train = np.expand_dims(X_train,axis=2)
+X_test = np.expand_dims(X_test,axis=2)
+X_val = np.expand_dims(X_val,axis=2)
 
 #%%
 def square_activation(x):
@@ -70,19 +74,21 @@ get_custom_objects().update({'square_activation': Activation(square_activation)}
 #%% Making model in here!
 def spline_model(J = 2, Q = 128, T = 200):
     inputs = Input(shape=(22050,1))
+    #
     x = Conv1D(filters=int(J*Q),kernel_size=int(T),strides=50,padding='valid'\
-               )(inputs)#=real_sp_initializer),kernel_initializer = 'glorot_normal'
+               ,kernel_initializer = 'glorot_normal')(inputs)#=real_sp_initializer)
     b1 = BatchNormalization()(x)
-    d1 = Dropout(0.2)(b1)
+    d1 = Dropout(drp)(b1)
     #c2 = Conv1D(128,4,activation='relu',strides=10,padding='valid')(d1)
     #d2 = Dropout(0.3)(c2)
     #c3 = Conv1D(128,4,activation='relu',strides=10,padding='valid')(d2)
     p3 = MaxPooling1D(pool_size=20, padding='valid')(d1)#,kernel_initializer = 'glorot_normal'
+    #l1 = LSTM(256, return_sequences=True)(b1)
     f1 = Flatten()(p3)
     dn1 = Dense(128,activation='relu')(f1)
-    d4 = Dropout(0.2)(dn1)
-    dn2 = Dense(32,activation='relu')(d4)
-    d5 = Dropout(0.2)(dn2)
+    d4 = Dropout(drp)(dn1)
+    dn2 = Dense(16,activation='relu')(d4)
+    d5 = Dropout(drp)(dn2)
     predictions = Dense(2,activation='softmax')(d5)
 
     model = Model(inputs=inputs, outputs=predictions)
@@ -107,19 +113,19 @@ myfil = tf_hermite_complex(S=S,deterministic=0,renormalization=np.amax,initializ
 [_,_,T] = create_filter_banks_complex(filter_class=myfil,N=N,J=J,Q=Q);
 print ('T: ' + str(T))
 
+
 #%%
 #defining my model using KERAS Functional API
 model = spline_model(J = J, Q = Q, T = T)
 model.summary()
-
 #%%
 
-#y_org = le.fit_transform(Y_train.values)
-#class_weights = class_weight.compute_class_weight('balanced',\
-#                                np.unique(y_org),y_org)
-sm = ADASYN(random_state=42)
-X_res, y_res = sm.fit_resample(np.squeeze(X_train), le.fit_transform(Y_train.values))
-label_tr = to_categorical(y_res,num_classes=2)
+y_org = le.fit_transform(Y_train.values)
+class_weights = class_weight.compute_class_weight('balanced',\
+                                np.unique(y_org),y_org)
+#sm = ADASYN(random_state=42)
+#X_res, y_res = sm.fit_resample(np.squeeze(X_train), le.fit_transform(Y_train.values))
+#label_tr = to_categorical(y_res,num_classes=2)
 #%%
 #the spline filters are present in the layers x and y
 #rmsprop = keras.optimizers.RMSprop(lr=lr, rho=0.9, epsilon=None, decay=0.1)
@@ -129,14 +135,15 @@ label_tr = to_categorical(y_res,num_classes=2)
 #    K.set_session(sess)
 #early_stopping = EarlyStopping(monitor='val_sensitivity', min_delta=0, patience = 5, mode='auto', baseline=None, restore_best_weights=False)
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[sensitivity, specificity])
-csv_logger = CSVLogger('Spline_log\\spline_log'+str(0.5)+'.csv', append=False, separator=',')
-model.fit(X_res.reshape((-1,22050,1)),label_tr,batch_size=32,\
-    epochs=Epochs,validation_data=(X_val.reshape((-1,22050,1)),label_va)\
-    ,callbacks=[csv_logger])#,early_stopping],class_weight=class_weights
-acc,sens,spec=model.evaluate(X_test.reshape((-1,22050,1)),label_te,batch_size=batch)
-model.save_weights('Spline_log\\spline_weights'+str(0.5)+'.h5')
+csv_logger = CSVLogger('Spline_log\\spline_log'+str(drp)+'.csv', append=False, separator=',')
+model.fit(X_train,label_tr,batch_size=32,\
+    epochs=Epochs,validation_data=(X_val,label_va)\
+    ,callbacks=[csv_logger],verbose=2,class_weight=class_weights)#,early_stopping]
+acc,sens,spec=model.evaluate(X_test,label_te,batch_size=batch)
+model.save_weights('Spline_log\\spline_weights'+str(drp)+'.h5')
 print('Test sensitivity: '+str(sens))
 print('Test specificity: '+str(spec))
+"""
 #%%
 y_pred = model.predict(X_test.reshape((-1,22050,1)))
 print(1-((np.abs(np.round(y_pred) - label_te)[:,0]).sum()/len(label_te)))
@@ -148,8 +155,12 @@ temp1,_ = mode(np.round(temp).T)
 temp1 = temp1.T
 print(1-(np.abs(np.ravel(temp1) - le.fit_transform(Y_test_pat.values))).sum()/len(temp1))
 #%% CODE FOR PLOTTING
-history = pd.read_csv('Spline_log\\spline_weights'+str(0.5)+'.csv')
-spline1 = np.squeeze(model.get_weights()[0])
+history = pd.read_csv('Spline_log\\spline_log'+str(0.5)+'.csv')
+plt.plot(history['val_loss'].values)
+plt.plot(history['loss'].values)
+plt.legend(['val_loss','training_loss'])
+
+#spline1 = np.squeeze(model.get_weights()[0])
 
 #%% VERY IMPORTANT FOR CHECKING FILTER BANKS
 myfil = tf_hermite_complex(S=190,deterministic=0,renormalization=\
@@ -173,3 +184,4 @@ plt.plot(m,np.abs(np.fft.fftshift(np.fft.fft(real_bank[l,:]))))
 plt.plot(n,np.abs(np.fft.fftshift(np.fft.fft(spline1[:,l]))))
 plt.legend(['initialization','after learning'])
 plt.show()
+"""

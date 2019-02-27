@@ -11,7 +11,7 @@ from keras.layers import Input, Dense, MaxPooling1D, Dropout, Flatten, Add, Conv
 from keras.models import Model
 
 #%%
-drp = [0.3,0.5,0.7];
+drp = [0.3,0.5,0.7,0.9];
 files = [pd.read_csv('spline_log'+str(i)+'.csv',index_col=0) for i in drp]
 
 #%%
@@ -36,6 +36,34 @@ plt.show()
 [plt.plot(df.index.values,df['val_sensitivity'].values) for df in files]
 plt.legend(['dropout = '+str(i) for i in drp])
 plt.title('validaton sensitivity plot')
+plt.show()
+
+#%%
+prev_train = 0.2201
+
+[plt.plot(df.index.values,np.array(df['sensitivity'].values)*prev_train + np.array(df['specificity'].values)*(1-prev_train)) for df in files]
+plt.legend(['dropout = '+str(i) for i in drp])
+plt.title('Training accuracy plot')
+plt.show()
+
+#%%
+prev_val = 0.2136
+
+[plt.plot(df.index.values,np.array(df['val_sensitivity'].values)*prev_val + np.array(df['val_specificity'].values)*(1-prev_val)) for df in files]
+plt.legend(['dropout = '+str(i) for i in drp])
+plt.title('Validation accuracy plot')
+plt.show()
+
+#%%
+[plt.plot(df.index.values,df['specificity'].values) for df in files]
+plt.legend(['dropout = '+str(i) for i in drp])
+plt.title('Specificity plot')
+plt.show()
+
+#%%
+[plt.plot(df.index.values,df['val_specificity'].values) for df in files]
+plt.legend(['dropout = '+str(i) for i in drp])
+plt.title('validaton specificity plot')
 plt.show()
 
 #%%
