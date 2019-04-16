@@ -42,5 +42,3 @@ clf.fit(X_train, label_tr)
 
 #%%
 y_pred = clf.predict(X_test)
-
-

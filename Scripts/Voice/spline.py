@@ -43,8 +43,6 @@ from spline_functions import k_selections, tf_hermite_complex,\
  real_sp_initializer, create_filter_banks_complex, sensitivity, specificity
 from imblearn.over_sampling import ADASYN
 
-_, drp = sys.argv
-drp = float(drp)
 #%% Using k_selections
 mfccSeries = pd.read_csv('..\\..\\Data\\VoiceData\\splineData\\SeriesX_spline.csv')
 X_train = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_train.npy')
@@ -76,9 +74,9 @@ def spline_model(J = 2, Q = 128, T = 200):
     inputs = Input(shape=(22050,1))
     #
     x = Conv1D(filters=int(J*Q),kernel_size=int(T),strides=50,padding='valid'\
-               ,kernel_initializer = 'glorot_normal')(inputs)#=real_sp_initializer)
+               ,kernel_initializer = 'glorot_normal',activation='relu')(inputs)#=real_sp_initializer)
     b1 = BatchNormalization()(x)
-    d1 = Dropout(drp)(b1)
+    d1 = Dropout(0.2)(b1)
     #c2 = Conv1D(128,4,activation='relu',strides=10,padding='valid')(d1)
     #d2 = Dropout(0.3)(c2)
     #c3 = Conv1D(128,4,activation='relu',strides=10,padding='valid')(d2)
@@ -86,10 +84,10 @@ def spline_model(J = 2, Q = 128, T = 200):
     #l1 = LSTM(256, return_sequences=True)(b1)
     f1 = Flatten()(p3)
     dn1 = Dense(128,activation='relu')(f1)
-    d4 = Dropout(drp)(dn1)
-    dn2 = Dense(16,activation='relu')(d4)
-    d5 = Dropout(drp)(dn2)
-    predictions = Dense(2,activation='softmax')(d5)
+    #d4 = Dropout(0.2)(dn1)
+    #dn2 = Dense(16,activation='relu')(d4)
+    #d5 = Dropout(0.2)(dn2)
+    predictions = Dense(2,activation='softmax')(dn1)
 
     model = Model(inputs=inputs, outputs=predictions)
     
@@ -126,6 +124,7 @@ class_weights = class_weight.compute_class_weight('balanced',\
 #sm = ADASYN(random_state=42)
 #X_res, y_res = sm.fit_resample(np.squeeze(X_train), le.fit_transform(Y_train.values))
 #label_tr = to_categorical(y_res,num_classes=2)
+
 #%%
 #the spline filters are present in the layers x and y
 #rmsprop = keras.optimizers.RMSprop(lr=lr, rho=0.9, epsilon=None, decay=0.1)
@@ -135,16 +134,45 @@ class_weights = class_weight.compute_class_weight('balanced',\
 #    K.set_session(sess)
 #early_stopping = EarlyStopping(monitor='val_sensitivity', min_delta=0, patience = 5, mode='auto', baseline=None, restore_best_weights=False)
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[sensitivity, specificity])
-csv_logger = CSVLogger('Spline_log\\spline_log'+str(drp)+'.csv', append=False, separator=',')
+csv_logger = CSVLogger('Spline_log\\spline_log1.csv', append=False, separator=',')
 model.fit(X_train,label_tr,batch_size=32,\
     epochs=Epochs,validation_data=(X_val,label_va)\
-    ,callbacks=[csv_logger],verbose=2,class_weight=class_weights)#,early_stopping]
+    ,callbacks=[csv_logger],verbose=1,class_weight=class_weights)#,early_stopping]
+#%%
 acc,sens,spec=model.evaluate(X_test,label_te,batch_size=batch)
-model.save_weights('Spline_log\\spline_weights'+str(drp)+'.h5')
+model.save('Spline_log\\spline_weights.h5')
 print('Test sensitivity: '+str(sens))
 print('Test specificity: '+str(spec))
-"""
 #%%
+from keras.models import load_model
+model = load_model('Spline_log\\spline_weights.h5',custom_objects={'sensitivity':sensitivity,'specificity':specificity})
+#%%
+#VISUALIZATION OF LAYER OUTPUTS AFTER 25 EPOCHS
+inp = model.input
+outputs = [layer.output for layer in model.layers[1:]]
+functors = [K.function([inp], [out]) for out in outputs]
+
+#%%
+#TESTING
+m = 14;
+test = np.expand_dims(X_train[m],0) 
+layer_outs = [func([test]) for func in functors]
+print('label:',label_tr[m])
+print('predicted:',np.round(model.predict(test)))
+#%%
+plt.imshow(model.get_weights()[6].T); plt.show()
+
+#%%
+plt.imshow(layer_outs[0][0][0].T); plt.show()
+plt.imshow(layer_outs[3][0][0]); plt.show()
+plt.plot(layer_outs[4][0][0]); plt.show()
+plt.plot(layer_outs[5][0][0]); plt.show()
+plt.plot(layer_outs[7][0][0]); plt.show()
+plt.plot(layer_outs[9][0][0]); plt.show()
+plt.show()
+
+#%%
+"""
 y_pred = model.predict(X_test.reshape((-1,22050,1)))
 print(1-((np.abs(np.round(y_pred) - label_te)[:,0]).sum()/len(label_te)))
 #%%
