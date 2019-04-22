@@ -43,7 +43,7 @@ count_reps = [(reps.values == i).sum()/len(reps) for i in uniques]
 np.average(reps.values)
 # Average number of recordings is 16.25
 
-#plt.plot(uniques,count_reps)
+plt.plot(uniques,count_reps)
 
 #%%
 """

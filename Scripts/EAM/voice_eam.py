@@ -20,6 +20,7 @@ from keras.models import Sequential
 from keras.layers import Dense, Dropout, LSTM, Bidirectional
 from scipy import stats
 
+
 #%% Importing the mfccData which is indexed correctly now!
 X_train = np.load('..\\..\\Data\\VoiceData\\mfccData\\X_mfcc_train_cind.npy')
 X_val = np.load('..\\..\\Data\\VoiceData\\mfccData\\X_mfcc_val_cind.npy')

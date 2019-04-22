@@ -49,7 +49,7 @@ X_train = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_train.npy')
 X_val = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_val.npy')
 X_test = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_test.npy')
 
-k = 3;
+k = 2;
 X_train, Y_train = k_selections(k, X_train, mfccSeries, 'train')
 X_val, Y_val = k_selections(k, X_val, mfccSeries, 'val')
 X_test, Y_test = k_selections(k, X_test, mfccSeries, 'test')
@@ -62,7 +62,7 @@ label_te = to_categorical(le.fit_transform(Y_test.values),num_classes=2)
 X_train = np.expand_dims(X_train,axis=2)
 X_test = np.expand_dims(X_test,axis=2)
 X_val = np.expand_dims(X_val,axis=2)
-
+print(np.sum(label_tr[:,1])/label_tr.shape[0])
 #%%
 def square_activation(x):
     return K.square(x)
@@ -73,7 +73,7 @@ get_custom_objects().update({'square_activation': Activation(square_activation)}
 def spline_model(J = 2, Q = 128, T = 200):
     inputs = Input(shape=(22050,1))
     #
-    x = Conv1D(filters=int(J*Q),kernel_size=int(T),strides=50,padding='valid'\
+    x = Conv1D(filters=int(T),kernel_size=int(J*Q),strides=50,padding='valid'\
                ,kernel_initializer = 'glorot_normal',activation='relu')(inputs)#=real_sp_initializer)
     b1 = BatchNormalization()(x)
     d1 = Dropout(0.2)(b1)
@@ -172,33 +172,51 @@ plt.plot(layer_outs[9][0][0]); plt.show()
 plt.show()
 
 #%%
-"""
+#Y_test_pat = Y_test[~Y_test.index.duplicated(keep='first')]
+#h = [(int(s), y_pred[i,int(s)]) for i,s in enumerate(label_te[:,1])]
+#%%
 y_pred = model.predict(X_test.reshape((-1,22050,1)))
 print(1-((np.abs(np.round(y_pred) - label_te)[:,0]).sum()/len(label_te)))
-#%%
-Y_test_pat = Y_test[~Y_test.index.duplicated(keep='first')]
+#Calculation of AUC ROC
+from pyroc import *
 temp = y_pred[:,1].reshape(int(len(y_pred[:,1])/k),k)
-#%%
 temp1,_ = mode(np.round(temp).T)
 temp1 = temp1.T
+temp2 = [np.max(temp[i]) if s== 1 else np.min(temp[i]) for i,s in enumerate(temp1)]
+h = [(temp1[i],s) for i,s in enumerate(temp2)]
+roc = ROCData(h)
+print(roc.auc())
+#%% Calculation of sensitivity
+label_ = label_te[:,1]; y_ = y_pred[:,1]
+true_positives = np.sum(np.round(np.clip(label_ * y_, 0, 1)))
+possible_positives = np.sum(np.round(np.clip(label_, 0, 1)))
+true_negatives = np.sum(np.round(np.clip((1-label_) * (1-y_), 0, 1)))
+possible_negatives = np.sum(np.round(np.clip(1-label_, 0, 1)))
+spec =  true_negatives / (possible_negatives + 1e-10)
+sens =  true_positives / (possible_positives + 1e-10)
+print(sens)
+print(spec)
+#%%
+"""
 print(1-(np.abs(np.ravel(temp1) - le.fit_transform(Y_test_pat.values))).sum()/len(temp1))
-#%% CODE FOR PLOTTING
+(#%% CODE FOR PLOTTING
 history = pd.read_csv('Spline_log\\spline_log'+str(0.5)+'.csv')
 plt.plot(history['val_loss'].values)
 plt.plot(history['loss'].values)
 plt.legend(['val_loss','training_loss'])
 
 #spline1 = np.squeeze(model.get_weights()[0])
-
+"""
 #%% VERY IMPORTANT FOR CHECKING FILTER BANKS
+Fs = 2205;
 myfil = tf_hermite_complex(S=190,deterministic=0,renormalization=\
                            np.amax,initialization='gabor',chirplet=1);
 [real_bank,imag_bank,T] = create_filter_banks_complex(filter_class=\
                             myfil,N=50,J=2,Q=128);
 print(real_bank.shape)
-m = np.linspace(-1,1,num=real_bank.shape[1])
+m = np.linspace(-Fs/2,Fs/2,num=real_bank.shape[1])
 plt.plot(m,np.abs(np.fft.fftshift(np.fft.fft(real_bank[80,:]))))
-plt.plot(m,np.abs(np.fft.fftshift(np.fft.fft(real_bank[122,:]))))
+plt.plot(m,np.abs(np.fft.fftshift(np.fft.fft(real_bank[79,:]))))
 plt.plot(m,np.abs(np.fft.fftshift(np.fft.fft(real_bank[255,:]))))
 plt.legend(['80','122','255'])
 plt.show()
@@ -212,4 +230,3 @@ plt.plot(m,np.abs(np.fft.fftshift(np.fft.fft(real_bank[l,:]))))
 plt.plot(n,np.abs(np.fft.fftshift(np.fft.fft(spline1[:,l]))))
 plt.legend(['initialization','after learning'])
 plt.show()
-"""
