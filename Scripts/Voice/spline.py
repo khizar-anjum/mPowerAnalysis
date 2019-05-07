@@ -49,10 +49,13 @@ X_train = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_train.npy')
 X_val = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_val.npy')
 X_test = np.load('..\\..\\Data\\VoiceData\\splineData\\X_spline_test.npy')
 
-k = 2;
+k = 10;
 X_train, Y_train = k_selections(k, X_train, mfccSeries, 'train')
 X_val, Y_val = k_selections(k, X_val, mfccSeries, 'val')
 X_test, Y_test = k_selections(k, X_test, mfccSeries, 'test')
+
+print(Y_train.sum()/len(Y_train))
+print(len(Y_train))
 #%%
 le = preprocessing.LabelEncoder()
 label_tr = to_categorical(le.fit_transform(Y_train.values),num_classes=2)
@@ -63,6 +66,7 @@ X_train = np.expand_dims(X_train,axis=2)
 X_test = np.expand_dims(X_test,axis=2)
 X_val = np.expand_dims(X_val,axis=2)
 print(np.sum(label_tr[:,1])/label_tr.shape[0])
+
 #%%
 def square_activation(x):
     return K.square(x)
@@ -70,6 +74,7 @@ def square_activation(x):
 get_custom_objects().update({'square_activation': Activation(square_activation)})
 
 #%% Making model in here!
+
 def spline_model(J = 2, Q = 128, T = 200):
     inputs = Input(shape=(22050,1))
     #
@@ -117,14 +122,14 @@ print ('T: ' + str(T))
 model = spline_model(J = J, Q = Q, T = T)
 model.summary()
 #%%
-
+"""
 y_org = le.fit_transform(Y_train.values)
 class_weights = class_weight.compute_class_weight('balanced',\
                                 np.unique(y_org),y_org)
 #sm = ADASYN(random_state=42)
 #X_res, y_res = sm.fit_resample(np.squeeze(X_train), le.fit_transform(Y_train.values))
 #label_tr = to_categorical(y_res,num_classes=2)
-
+"""
 #%%
 #the spline filters are present in the layers x and y
 #rmsprop = keras.optimizers.RMSprop(lr=lr, rho=0.9, epsilon=None, decay=0.1)
@@ -133,11 +138,11 @@ class_weights = class_weight.compute_class_weight('balanced',\
 #    sess.run(tf.global_variables_initializer())
 #    K.set_session(sess)
 #early_stopping = EarlyStopping(monitor='val_sensitivity', min_delta=0, patience = 5, mode='auto', baseline=None, restore_best_weights=False)
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[sensitivity, specificity])
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=[sensitivity, specificity])
 csv_logger = CSVLogger('Spline_log\\spline_log1.csv', append=False, separator=',')
-model.fit(X_train,label_tr,batch_size=32,\
+model.fit(X_train,label_tr,batch_size=batch,\
     epochs=Epochs,validation_data=(X_val,label_va)\
-    ,callbacks=[csv_logger],verbose=1,class_weight=class_weights)#,early_stopping]
+    ,callbacks=[csv_logger],verbose=1)#,class_weight=class_weights)#,early_stopping]
 #%%
 acc,sens,spec=model.evaluate(X_test,label_te,batch_size=batch)
 model.save('Spline_log\\spline_weights.h5')
