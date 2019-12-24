@@ -1,5 +1,4 @@
-Hello, this is a repository for my final year project. This only 
-contains code and important information that I use for my project.
+This is a repository for my final year project. This only contains code and important information that I use for my project. Unfortunately, I cannot share the data, as can only be accessed by going through specific instructions described in [2].
 
 ## What is the project about?
 <dl>
@@ -7,7 +6,7 @@ contains code and important information that I use for my project.
 </dl>
 
 ## How to Use this code?
-All contributions or usage of this code is welcome. Please contact me if you have any questions about the project. 
+This project basically revolves around analysing data collected from Sage-Bionetworks [Research Kit App](https://github.com/Sage-Bionetworks/mPower). The data can be accessed by going through these [instructions](https://github.com/Sage-Bionetworks/mPower-sdata). All contributions or usage of this code are welcome. Please contact me if you have any questions about the project. 
 
 ## References
 [1] Schwab, Patrick, and Walter Karlen. "PhoneMD: Learning to Diagnose Parkinson's Disease from Smartphone Data." arXiv preprint arXiv:1810.01485 (2018).  
